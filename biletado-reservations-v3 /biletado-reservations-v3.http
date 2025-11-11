@@ -1,0 +1,6 @@
+@biletado_reservations_v3_HostAddress = http://localhost:5207
+
+GET {{biletado_reservations_v3_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "biletado-reservations-v3", "biletado-reservations-v3 \biletado-reservations-v3.csproj", "{FDD46E6A-771A-40A8-89C5-70CCDF36623A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "biletado-reservations-v3", "biletado-reservations-v3\biletado-reservations-v3.csproj", "{FDD46E6A-771A-40A8-89C5-70CCDF36623A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

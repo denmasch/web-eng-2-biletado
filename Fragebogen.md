@@ -3,12 +3,7 @@
 
 ## Gruppeninformationen
 
-> Der Gruppenname hat keine weitere Bedeutung, macht mir aber eine Zuordnung bei der Korrektur einfacher.
-> Es kann sein, dass der Name später noch weiterlebt, falls ich den Quellcode in die biletado-Organisation verschiebe.
->
-> See: [fantasy name generators](https://www.fantasynamegenerators.com/)
-
-Gruppenname: Covfefe
+Gruppenname: Gloin 
 
 Gruppenteilnehmer:
 
@@ -54,7 +49,7 @@ SPDX-License-Identifier und Dateinamen im Quellcode:
 
 ## geplante Automatisierung
 
-Art der Automatisierung: z.B. "build.sh, ubuntu 22.04", "GitLab CI" oder "GitHub Actions"
+GitHub Actions
 
 ## geplante Testautomatisierung
 

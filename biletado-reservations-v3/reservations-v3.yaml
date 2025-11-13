@@ -1,0 +1,631 @@
+openapi: "3.1.1"
+info:
+  version: "3.0.1"
+  title: "Biletado reservations"
+  termsOfService: "http://biletado.gitlab.io/"
+  contact:
+    email: "dh@blaimi.de"
+  license:
+    name: "Creative Commons Attribution Share Alike 4.0 International"
+    identifier: CC-BY-SA-4.0
+  # language=markdown
+  description: |
+    ## changelog
+    <table>
+    <tr><th><p>version</p></th><th><p>changes</p></th></tr>
+    <tr>
+    <td valign="top"><p>3.0.0</p></td>
+    <td valign="top">
+    
+    * initial v3 specification
+    
+    </td>
+    </tr>
+    <tr>
+    <td valign="top"><p>3.0.1</p></td>
+    <td valign="top">
+    
+    * remove optional comment from ReservationPrototype schema
+    
+    </td>
+    </tr>
+    </table>
+    
+    
+    ## TODO
+    * set `additionalProperties` or `unevaluatedProperties` to `false` properly
+    
+    ### v3
+    * Etag
+    * Pagination
+    * PATCH
+tags:
+  - name: status
+    description: information about the API-Status
+  - name: reservations
+    description: CRUD reservations
+servers:
+  - description: default kind installation
+    url: "http://localhost:9090"
+  - description: |
+      custom server, e.g. for local development.
+      Note, that the service must respond to CORS-Requests.
+    url: "{scheme}{host}{port}"
+    variables:
+      scheme:
+        default: "http://"
+      host:
+        default: "localhost"
+      port:
+        default: ":80"
+security: []
+components:
+  securitySchemes:
+    biletado:
+      type: oauth2
+      x-client-id: angular
+      flows:
+        authorizationCode:
+          authorizationUrl: /auth/realms/biletado/protocol/openid-connect/auth/
+          tokenUrl: /auth/realms/biletado/protocol/openid-connect/token/
+          scopes: {}
+  parameters:
+    ReservationIdParam:
+      in: path
+      name: id
+      schema:
+        type: string
+        format: uuid
+        pattern: ' ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        minLength: 36
+        maxLength: 36
+      required: true
+      description: uuid of the reservation
+    IncludeDeletedParam:
+      in: query
+      name: include_deleted
+      schema:
+        type: boolean
+        default: false
+      description: Set this `true` to include deleted reservations. Not set or anything else does not return deleted reservations.
+    DeletePermanentParam:
+      in: query
+      name: permanent
+      schema:
+        type: boolean
+        default: false
+      description: Set this `true` to permanently delete a reservation. Not set or anything else defaults to a soft delete.
+  schemas:
+    # <editor-fold desc="AssetCommon">
+    Uuid:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      minLength: 36
+      maxLength: 36
+    ReservationId:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+          description: uuid of the reservation
+      required:
+        - id
+    ReservationDeletedAt:
+      type: object
+      properties:
+        deleted_at:
+          description: The date, when this reservation was deleted in [RFC3339 Section 5.6](https://datatracker.ietf.org/doc/html/rfc3339#section-5.6).
+          type: string
+          format: date-time
+          pattern: '^((?:(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2}(?:\.\d+)?))(Z|[\+-]\d{2}:\d{2})?)$'
+          minLength: 20
+          maxLength: 32
+      required:
+        - deleted_at
+    ReservationDeletedAtRestore:
+      type: object
+      properties:
+        deleted_at:
+          description: restores an reservation when set
+          type:
+            - "null"
+    # </editor-fold>
+    # <editor-fold desc="Status">
+    ApiStatus:
+      description: Information about the API-Implementation.
+      type: object
+      properties:
+        authors:
+          description: List of all authors of this backend.
+          type: array
+          items:
+            $ref: '#/components/schemas/Author'
+          minItems: 1
+        api_version:
+          description: The exact version of the api implemented by this backend.
+          type: string
+          # pattern from semver.org
+          pattern: '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
+    Author:
+      description: A API-Author. MUST contain printable characters only separated by single spaces.
+      type: string
+      pattern: '^([a-zA-ZäöüÄÖÜßĉĝĥĵŝŭĈĜĤIĴŜŬ0-9-.]+ )*([a-zA-ZäöüÄÖÜßĉĝĥĵŝŭĈĜĤIĴŜŬ0-9-.]+)$'
+      minLength: 1
+    HealthReadiness:
+      description: |
+        `ready: true` if all requirements are fulfilled to serve requests.
+        This includes runtime dependencies like database-connections.
+      type: object
+      properties:
+        ready:
+          description: if the service is healthy and can serve requests
+          type: boolean
+      required:
+        - ready
+    HealthLiveness:
+      description: |
+        `live: true` if the service is operating.
+        This does _not_ include runtime requirements like database-connections.
+      type: object
+      properties:
+        live:
+          description: if the service is in full operation mode
+          type: boolean
+      required:
+        - live
+    Health:
+      description: |
+        summary of the healthiness of the service.
+        May contain additional details like db-connections-status.
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/HealthReadiness'
+        - $ref: '#/components/schemas/HealthLiveness'
+        - type: object
+          additionalProperties: {}
+    # </editor-fold>
+    # <editor-fold desc="Error">
+    ErrorContainer:
+      description: 'An error response for an operation.'
+      type: 'object'
+      properties:
+        errors:
+          type: array
+          minItems: 0
+          maxItems: 100
+          description: 'The array of error entries associated with the error response'
+          items:
+            $ref: '#/components/schemas/Error'
+        trace:
+          description: 'The error trace information.'
+          type: 'string'
+          format: 'uuid'
+    Error:
+      description: 'An error response entry.'
+      type: 'object'
+      properties:
+        code:
+          description: 'The error code.'
+          type: 'string'
+          enum: [ 'bad_request', 'not_authorized', 'no_need_to_know' ]
+        message:
+          description: 'The error message.'
+          type: 'string'
+        more_info:
+          description: 'Additional info about the error.'
+          type: 'string'
+    # </editor-fold>
+    # <editor-fold desc="Reservation">
+    ReservationPrototype:
+      description: |
+        contains a reservation for a specific room.
+        reservations on rooms MUST NOT overleap but `from` and `to` can be the same date
+        reservations are only valid if from < to
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        room_id:
+          type: string
+          format: uuid
+      required:
+        - from
+        - to
+        - room_id
+    Reservation:
+      description: a full reservation with all properties.
+      allOf:
+        - $ref: '#/components/schemas/ReservationId'
+        - $ref: '#/components/schemas/ReservationPrototype'
+    ReservationDeleted:
+      description: a deleted reservation
+      allOf:
+        - $ref: '#/components/schemas/Reservation'
+        - $ref: '#/components/schemas/ReservationDeletedAt'
+    ReservationMaybeDeleted:
+      description: an active or deleted reservation
+      anyOf:
+        - $ref: '#/components/schemas/Reservation'
+        - $ref: '#/components/schemas/ReservationDeleted'
+    ReservationReplacement:
+      description: change or restore a reservation
+      allOf:
+        - $ref: '#/components/schemas/ReservationPrototype'
+        - $ref: '#/components/schemas/ReservationDeletedAtRestore'
+    ReservationCollection:
+      description: a collection of reservations within a `reservations` property.
+      type: object
+      properties:
+        reservations:
+          $ref: '#/components/schemas/ReservationList'
+      required:
+        - reservations
+    ReservationList:
+      description: an arraylist of reservations.
+      type: array
+      items:
+        $ref: '#/components/schemas/ReservationMaybeDeleted'
+      minItems: 0
+    # </editor-fold>
+  headers:
+    Location:
+      schema:
+        type: string
+        format: uri
+paths:
+  # <editor-fold desc="/status">
+  /api/v3/reservations/status:
+    get:
+      operationId: get_status
+      summary: returns information about the backend-service and status
+      tags:
+        - status
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiStatus'
+              examples:
+                sample:
+                  value:
+                    authors:
+                      - "Ludwik Lejzer Zamenhof"
+                    api_version: "3.0.0"
+  # </editor-fold>
+  # <editor-fold desc="/health">
+  /api/v3/reservations/health:
+    get:
+      operationId: get_health
+      tags:
+        - status
+      summary: health information about the service
+      responses:
+        "200":
+          description: the service can be considered as "live".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              examples:
+                sample:
+                  value:
+                    live: true
+                    ready: true
+                    databases:
+                      assets:
+                        connected: true
+        "503":
+          description: the service cannot be considered as "live" and should be replaced or restarted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+  /api/v3/reservations/health/live:
+    get:
+      operationId: get_health_live
+      tags:
+        - status
+      summary: liveness information about the service. Can be used for liveness probes.
+      responses:
+        "200":
+          description: The service can be considered as "live".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthLiveness'
+              examples:
+                sample:
+                  value:
+                    live: true
+        "503":
+          description: the service cannot be considered as "live" and should be replaced or restarted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+  /api/v3/reservations/health/ready:
+    get:
+      operationId: get_health_ready
+      tags:
+        - status
+      summary: readiness information about the service. Can be used for readiness probes.
+      responses:
+        "200":
+          description: the service can be considered as "ready".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReadiness'
+              examples:
+                sample:
+                  value:
+                    ready: true
+        "503":
+          description: the service cannot be considered as "ready" and should not be used to serve requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+  # </editor-fold>
+  # <editor-fold desc="/reservations">
+  /api/v3/reservations/reservations:
+    get:
+      operationId: get_reservations
+      tags:
+        - reservations
+      summary: get all reservations.
+      description: If `include_deleted` is set to `true`, deleted reservations will be included.
+      parameters:
+        - $ref: '#/components/parameters/IncludeDeletedParam'
+        - name: room_id
+          in: query
+          description: filter the returned reservation by the given room
+          schema:
+            $ref: '#/components/schemas/Uuid'
+        #  <==1===>        <======2=======><=3=>      reservations
+        #           <----------------------------     request ?after=16.            -> returns 2 & 3
+        #  ------------------------>                  request ?before=18.           -> returns 1 & 2
+        #           <-------------->                  request ?after=16.&before=18. -> returns only 2
+        #  15.     16.     17.     18.    19.  20.
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: date
+          # language=markdown
+          description: |
+            filter for reservations where `query:before` > `reservation:from`. `before` = `from` is accepted.
+            this can be used in combination with the other query-parametes to check for a reserved time frame
+            |  15.  |  16.  |  17.  |  18.  |  19.  |  20.  |              |
+            |-------|-------|-------|-------|-------|-------|--------------|
+            | `   <1` | `1>   ` | `   <2` | ` =2= ` | `2> <3` | `3>   ` | reservations |
+            | `     ` | `   <-` | `-----` | `-----` | `-----` | `-----` | request ?after=16.          -> returns 2 & 3 |
+            | `-----` | `-----` | `-----` | `->   ` | `     ` | `     ` | request ?before=18.         -> returns 1 & 2 |
+            | `     ` | `   <-` | `-----` | `->   ` | `     ` | `     ` | request ?after=16.&before=18. -> returns only 2 |
+        - name: after
+          in: query
+          schema:
+            type: string
+            format: date
+          description: |
+            filter for reservations where `query:after` < `reservation:to`. `after` = `to` is accepted.
+            this can be used in combination with the other query-parametes to check for a reserved time frame
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationCollection'
+              examples:
+                sample:
+                  value:
+                    reservations:
+                      - id: fb2d4c44-5bd8-4099-82bd-6f041b19bd1e
+                        from: "2022-03-10"
+                        to: "2022-03-11"
+                        room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+                      - id: db2fbb66-f005-41a2-ad38-f48d1750f46e
+                        from: "2022-03-10"
+                        to: "2022-03-11"
+                        room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+                        deleted_at: "2023-11-06T05:30:59.000Z"
+    post:
+      operationId: create_reservation
+      tags:
+        - reservations
+      summary: create a new reservation
+      description: Create a new reservation with a prototype and autogenerated id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationPrototype'
+            examples:
+              sample:
+                value:
+                  from: "2022-03-10"
+                  to: "2022-03-11"
+                  room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+      #security:
+      #  - biletado: []
+      responses:
+        "201":
+          description: successful operation of creating a new reservation with the reservation returned.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+              examples:
+                sample:
+                  value:
+                    id: fb2d4c44-5bd8-4099-82bd-6f041b19bd1e
+                    from: "2022-03-10"
+                    to: "2022-03-11"
+                    room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+        "400":
+          description: invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+        #"401": #TODO: decide, if auth is needed for creating reservations
+        #  description: if no (valid) authentication is given
+        #  content:
+        #    application/json:
+        #      schema:
+        #        $ref: '#/components/schemas/ErrorContainer'
+  /api/v3/reservations/reservations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ReservationIdParam'
+    get:
+      operationId: get_reservation
+      tags:
+        - reservations
+      summary: get a reservations by its id
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationMaybeDeleted'
+              examples:
+                sample:
+                  value:
+                    id: fb2d4c44-5bd8-4099-82bd-6f041b19bd1e
+                    from: "2022-03-10"
+                    to: "2022-03-11"
+                    room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+                deleted:
+                  value:
+                    id: fb2d4c44-5bd8-4099-82bd-6f041b19bd1e
+                    from: "2022-03-10"
+                    to: "2022-03-11"
+                    room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+                    deleted_at: "2023-11-06T05:30:59.000Z"
+        "404":
+          description: not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+    put:
+      operationId: replace_reservation
+      tags:
+        - reservations
+      summary: create, replace and/or restore a reservation by its id
+      description: |
+        Replace or create a reservation by its id.
+        * The reservation must not be deleted or it has to be restored by setting `deleted_at: null`.
+        * If the reservation shall be restored, the prototype must be included (TODO: PATCH-method).
+        * Authentication is only required, if the reservation already exists.
+        * If the reservation with the given id does not exist, a new reservation is created with the given id.
+      security:
+        - biletado: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationReplacement'
+            examples:
+              replace:
+                value:
+                  from: "2022-03-10"
+                  to: "2022-03-11"
+                  room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+              restore:
+              value:
+                  from: "2022-03-10"
+                  to: "2022-03-11"
+                  room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+                  deleted_at: null
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+              examples:
+                sample:
+                  value:
+                    id: fb2d4c44-5bd8-4099-82bd-6f041b19bd1e
+                    from: "2022-03-10"
+                    to: "2022-03-11"
+                    room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+        "201":
+          description: successful operation of creating a new reservation if the uuid could not be found.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+              examples:
+                sample:
+                  value:
+                    id: fb2d4c44-5bd8-4099-82bd-6f041b19bd1e
+                    from: "2022-03-10"
+                    to: "2022-03-11"
+                    room_id: 44b0a13f-ca5a-4ce1-bd93-bfe874e92bb7
+        "400":
+          description: invalid input. This is also returned, if the reservation was deleted and a restore is not requested.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+        "401":
+          description: if no (valid) authentication is given for an existing reservation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+    delete:
+      operationId: delete_reservation
+      tags:
+        - reservations
+      summary: soft-delete a reservation
+      description: |
+        This sets the `deleted_at` property of a reservation to the current date-time.
+        Once the reservation is soft-deleted, it is only included in #get_reservations when `include_deleted` is `true`.
+        If the `permanent` parameter is set to `true`, a permanent deletion is performed.
+      parameters:
+        - $ref: '#/components/parameters/DeletePermanentParam'
+      security:
+        - biletado: []
+      responses:
+        "204":
+          description: successful operation
+        "400":
+          description: deletion not possible because of input errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+        "401":
+          description: if no (valid) authentication is given
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+        "404":
+          description: not found or already deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorContainer'
+  # </editor-fold>

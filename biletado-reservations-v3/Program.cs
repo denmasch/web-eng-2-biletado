@@ -1,6 +1,15 @@
+using biletado_reservations_v3.Data;
 using biletado_reservations_v3.Endpoints;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<ReservationDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("ReservationConnection"))
+);
+builder.Services.AddDbContext<AssetsDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("AssetsConnection"))
+);
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using biletado_reservations_v3.Models.Reservation;
 using biletado_reservations_v3.Data;
 using biletado_reservations_v3.Models.Status;
@@ -15,9 +16,89 @@ public static class ReservationEndpointsStatus
             Results.Ok(new ApiStatus { Authors = new List<string> {"Devin Schnurr", "Jannik Metz"}, ApiVersion = "3.0.0"})
         );
 
-        group.MapGet("/health", async () =>
-            Results.Ok(new Health { Live = true, Ready = true })
+        group.MapGet("/health", async (ReservationDbContext reservationsDb, AssetsDbContext assetsDb) =>
+        {
+            var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
+            var assetsConnected = await CheckDatabaseAsync(assetsDb);
+            var reservationsConnected = await CheckDatabaseAsync(reservationsDb);
+                
+            if (!assetsConnected || !reservationsConnected)
+            {
+                return Results.Json( new
+                {
+                    errors = new[]
+                    {
+                        new
+                        {
+                            code = "database_unreachable",
+                            message = "One or more databases are not reachable.",
+                            more_info = "Check connection strings or database availability."
+                        }
+                    },
+                    trace = traceId
+                }, statusCode: 503);
+            }
+
+            return Results.Ok(new 
+                { 
+                    live = true,
+                    ready = true,
+                    databases = new
+                    {
+                        assets = new
+                        {
+                            connected = assetsConnected,
+                        },
+                        reservations = new
+                        {
+                            connected = reservationsConnected,
+                        }
+                    }
+                });
+        }
+        );
+        
+        group.MapGet("/health/live", () =>
+            Results.Ok(new  { live = true })
         );
 
+        group.MapGet("/health/ready", async (ReservationDbContext reservationsDb, AssetsDbContext assetsDb) =>
+            {
+                var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
+                var assetsConnected = await CheckDatabaseAsync(assetsDb);
+                var reservationsConnected = await CheckDatabaseAsync(reservationsDb);
+                
+                if (!assetsConnected || !reservationsConnected)
+                {
+                    return Results.Json( new
+                    {
+                        errors = new[]
+                        {
+                            new
+                            {
+                                code = "database_unreachable",
+                                message = "One or more databases are not reachable.",
+                                more_info = "Check connection strings or database availability."
+                            }
+                        },
+                        trace = traceId
+                    }, statusCode: 503);
+                }
+                return Results.Ok(new { ready = true });
+            }
+        );
+    }
+    
+    private static async Task<bool> CheckDatabaseAsync(DbContext db)
+    {
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync("SELECT 1;");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            return false;
+        }
     }
 }

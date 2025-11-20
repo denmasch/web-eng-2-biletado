@@ -31,5 +31,6 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.MapReservationEndpointsStatus();
+app.MapReservationEndpointsReservations();
 
 app.Run();

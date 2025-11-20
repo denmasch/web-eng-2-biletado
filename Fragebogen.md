@@ -18,7 +18,7 @@ Links zu den Versionskontrollendpunkten:
 
 ## Containerregistry
 
-z.B. "Verwenden die registry des gitlab-repositories", "ghcr.io" oder dockerhub
+ghcr.io
 
 ## Lizenz
 
@@ -43,6 +43,8 @@ GitHub Actions
 
 ## geplante Testautomatisierung
 
-Art der Testautomatisierung: z.B. "unittest während build", "linter im test-stage des CI"
+unittest während build/ in der CI pipeline
 
-Wie sind die Ergebnisse einzusehen?:
+Wie sind die Ergebnisse einzusehen?: 
+
+über GitHub Actions

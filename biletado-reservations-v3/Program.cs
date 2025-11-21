@@ -28,6 +28,29 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.MapGet("/rapidoc", async context =>
+{
+    var html = @"
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type=""module""
+      src=""https://unpkg.com/rapidoc/dist/rapidoc-min.js"">
+    </script>
+  </head>
+  <body>
+    <rapi-doc 
+      spec-url=""/swagger/v1/swagger.json""
+      render-style=""read""
+      theme=""dark""
+    ></rapi-doc>
+  </body>
+</html>";
+    context.Response.ContentType = "text/html";
+    await context.Response.WriteAsync(html);
+});
+
+
 app.UseHttpsRedirection();
 
 app.MapReservationEndpointsStatus();

@@ -55,13 +55,14 @@ public static class ReservationEndpointsReservation
             ReservationDbContext db,
             DateOnly from,
             DateOnly to,
-            Guid roomId
+            Guid room_id,
+            IHttpClientFactory httpClientFactory,
+            CancellationToken cancellationToken
         ) =>
         {
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
             
-            //TODO: Check room existence via Assets API and if the room is already booked for the given dates
-            
+            // validate dates
             if (from > to || from < DateOnly.FromDateTime(DateTime.UtcNow))
             {
                 return Results.BadRequest(new
@@ -78,13 +79,50 @@ public static class ReservationEndpointsReservation
                     trace = traceId
                 });
             }
+            
+            // validate room exists
+            var client = httpClientFactory.CreateClient("assets");
+            if (!await RoomExistsAsync(client, room_id, cancellationToken))
+            {
+                return Results.NotFound(new
+                {
+                    errors = new[]
+                    {
+                        new
+                        {
+                            code = "not_found",
+                            message = "Room not found.",
+                            more_info = "No room with the given id exists in the assets service."
+                        }
+                    },
+                    trace = traceId
+                });
+            }
+            
+            // check for conflicting reservations
+            if (await RoomIsBookedAsync(db, room_id, from, to))
+            {
+                return Results.Conflict(new
+                {
+                    errors = new[]
+                    {
+                        new
+                        {
+                            code = "conflict",
+                            message = "The room is already booked for the selected dates.",
+                            more_info = "Please choose different dates or a different room."
+                        }
+                    },
+                    trace = traceId
+                });
+            }
 
             var reservation = new Reservation
             {
                 Id = Guid.NewGuid(),
                 From = from,
                 To = to,
-                RoomId = roomId,
+                RoomId = room_id,
                 DeletedAt = null
             };
 
@@ -115,4 +153,31 @@ public static class ReservationEndpointsReservation
             
         });
     } 
+    
+    private static async Task<bool> RoomExistsAsync(HttpClient client, Guid room_id, CancellationToken ct)
+    {
+        try
+        {
+            using var resp = await client.GetAsync($"/api/v3/assets/rooms/{room_id}", ct);
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> RoomIsBookedAsync(ReservationDbContext db, Guid room_id, DateOnly from, DateOnly to)
+    {
+        var query = db.Reservations.AsQueryable();
+        return await query.AnyAsync(r =>
+            r.RoomId == room_id &&
+            r.DeletedAt == null &&
+            (
+                (from >= r.From && from < r.To) ||
+                (to > r.From && to <= r.To) ||
+                (from <= r.From && to >= r.To)
+            )
+        );
+    }
 }

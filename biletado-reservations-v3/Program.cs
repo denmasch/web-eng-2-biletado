@@ -41,7 +41,7 @@ app.MapGet("/rapidoc", async context =>
   <body>
     <rapi-doc 
       spec-url=""/swagger/v1/swagger.json""
-      render-style=""read""
+      render-style=""view""
       theme=""dark""
     ></rapi-doc>
   </body>

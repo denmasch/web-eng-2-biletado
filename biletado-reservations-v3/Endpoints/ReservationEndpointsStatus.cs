@@ -11,7 +11,7 @@ public static class ReservationEndpointsStatus
 {
     public static void MapReservationEndpointsStatus(this IEndpointRouteBuilder routes)
     {
-        var group = routes.MapGroup("/api/v3/reservations");
+        var group = routes.MapGroup("/api/v3/reservations").WithTags("Status");
 
         group.MapGet("/status", async () =>
             Results.Ok(new ApiStatus { Authors = new List<string> {"Devin Schnurr", "Jannik Metz"}, ApiVersion = "3.0.0"})

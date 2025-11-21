@@ -11,7 +11,7 @@ public static class ReservationEndpointsReservation
 {
     public static void MapReservationEndpointsReservations(this IEndpointRouteBuilder routes)
     {
-        var group = routes.MapGroup("/api/v3/reservations/reservations");
+        var group = routes.MapGroup("/api/v3/reservations/reservations").WithTags("Reservations");
         
         group.MapGet("", async (
             ReservationDbContext db,

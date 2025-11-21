@@ -138,17 +138,39 @@ public static class ReservationEndpointsReservation
         });
 
         
-        group.MapGet("{id}", async (Guid id, ReservationDbContext reservationDb) =>
+        group.MapGet("{id}", async (Guid id, ReservationDbContext db) =>
+        {
+            var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
+            var query = db.Reservations.AsQueryable();
+            
+            var reservation = await query.FirstOrDefaultAsync(r => r.Id == id);
+            if (reservation == null)
+            {
+                return Results.NotFound(new
+                {
+                    errors = new[]
+                    {
+                        new
+                        {
+                            code = "bad_request",
+                            message = "Reservation not found.",
+                            more_info = "No reservation with the given id exists."
+                        }
+                    },
+                    trace = traceId
+                });
+            }
+            
+            return Results.Ok(reservation);
+            
+        });
+        
+        group.MapPut("{id}", async (Guid id, ReservationDbContext db) =>
         {
             
         });
         
-        group.MapPut("{id}", async (Guid id, ReservationDbContext reservationDb) =>
-        {
-            
-        });
-        
-        group.MapDelete("{id}", async (Guid id, ReservationDbContext reservationDb) =>
+        group.MapDelete("{id}", async (Guid id, ReservationDbContext db) =>
         {
             
         });

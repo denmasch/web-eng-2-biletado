@@ -17,6 +17,6 @@ public class Reservation
     [JsonPropertyName("room_id")]
     public Guid RoomId { get; set; }
     
-    [JsonPropertyName("deleted_at")]
+    [property: JsonPropertyName("deleted_at"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTime? DeletedAt { get; set; }
 }

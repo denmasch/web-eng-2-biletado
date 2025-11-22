@@ -25,7 +25,7 @@ public static class ReservationEndpointsStatus
             bool assetsConnected = await CheckExternalApiHealthAsync(client, "/api/v3/assets/health", cancellationToken);
             
             var reservationsConnected = await CheckDatabaseAsync(reservationsDb);
-                
+            
             if (!assetsConnected || !reservationsConnected)
             {
                 return Results.Json( new

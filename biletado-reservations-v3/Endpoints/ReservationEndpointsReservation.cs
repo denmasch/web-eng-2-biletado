@@ -1,8 +1,7 @@
 using System.Diagnostics;
-using System.Security.Claims;
 using biletado_reservations_v3.Models.Reservation;
 using biletado_reservations_v3.Data;
-using biletado_reservations_v3.Models.Status;
+using biletado_reservations_v3.Service;
 using Microsoft.EntityFrameworkCore;
 
 namespace biletado_reservations_v3.Endpoints;
@@ -57,62 +56,26 @@ public static class ReservationEndpointsReservation
             DateOnly to,
             Guid room_id,
             IHttpClientFactory httpClientFactory,
+            IReservationValidator validator,
             CancellationToken cancellationToken
         ) =>
         {
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
             
-            // validate dates
-            if (from > to || from < DateOnly.FromDateTime(DateTime.UtcNow))
+            var client = httpClientFactory.CreateClient("assets");
+            
+            // validate reservation data
+            var validationResult = await validator.ValidateNewAsync(from, to, room_id, db, client, cancellationToken);
+
+            if (!validationResult.IsValid)
             {
                 return Results.BadRequest(new
                 {
-                    errors = new[]
-                    {
-                        new
-                        {
-                            code = "bad_request",
-                            message = "Invalid reservation dates.",
-                            more_info = "The 'from' date must be before the 'to' date and cannot be in the past."
-                        }
-                    },
-                    trace = traceId
-                });
-            }
-            
-            // validate room exists
-            var client = httpClientFactory.CreateClient("assets");
-            if (!await RoomExistsAsync(client, room_id, cancellationToken))
-            {
-                return Results.NotFound(new
-                {
-                    errors = new[]
-                    {
-                        new
-                        {
-                            code = "not_found",
-                            message = "Room not found.",
-                            more_info = "No room with the given id exists in the assets service."
-                        }
-                    },
-                    trace = traceId
-                });
-            }
-            
-            // check for conflicting reservations
-            if (await RoomIsBookedAsync(db, room_id, from, to))
-            {
-                return Results.Conflict(new
-                {
-                    errors = new[]
-                    {
-                        new
-                        {
-                            code = "conflict",
-                            message = "The room is already booked for the selected dates.",
-                            more_info = "Please choose different dates or a different room."
-                        }
-                    },
+                    errors = validationResult.Errors.Select(e => new {
+                        code = e.Code,
+                        message = e.Message,
+                        more_info = e.MoreInfo
+                    }),
                     trace = traceId
                 });
             }
@@ -138,7 +101,7 @@ public static class ReservationEndpointsReservation
         });
 
         
-        group.MapGet("{id}", async (Guid id, ReservationDbContext db) =>
+        group.MapGet("{id}", async (ReservationDbContext db, Guid id) =>
         {
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
             var query = db.Reservations.AsQueryable();
@@ -165,8 +128,102 @@ public static class ReservationEndpointsReservation
             
         });
         
-        group.MapPut("{id}", async (Guid id, ReservationDbContext db) =>
+        group.MapPut("{id}", async (ReservationDbContext db, 
+            Guid id,
+            ReservationReplacement body,
+            IHttpClientFactory httpClientFactory,
+            IReservationValidator validator,
+            CancellationToken cancellationToken) =>
         {
+            var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
+            
+            var client = httpClientFactory.CreateClient("assets");
+            
+            var reservation = await db.Reservations
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(r => r.Id == id);
+            
+            bool isExisting = reservation != null;
+            bool isDeleted = reservation?.DeletedAt != null;
+            
+            if (!isExisting)
+            {
+                // validate new reservation data
+                var validationNewResult = await validator.ValidateNewAsync(body.From, body.To, body.RoomId, db, client, cancellationToken);
+
+                if (!validationNewResult.IsValid)
+                {
+                    return Results.BadRequest(new
+                    {
+                        errors = validationNewResult.Errors.Select(e => new {
+                            code = e.Code,
+                            message = e.Message,
+                            more_info = e.MoreInfo
+                        }),
+                        trace = traceId
+                    });
+                }
+                
+                Reservation newReservation = new Reservation
+                {
+                    Id = id,
+                    From = body.From,
+                    To = body.To,
+                    RoomId = body.RoomId,
+                    DeletedAt = body.DeletedAt
+                };
+                
+                db.Reservations.Add(newReservation);
+                await db.SaveChangesAsync();
+                
+                var location = $"/api/v3/reservations/reservations/{newReservation.Id}";
+
+                return Results.Created(location, newReservation);
+            }
+
+            if (isDeleted && body.DeletedAt != null)
+            {
+                return Results.BadRequest(new
+                {
+                    errors = new[]
+                    {
+                        new
+                        {
+                            code = "bad_request",
+                            message = "Cannot update a deleted reservation.",
+                            more_info = "To restore a deleted reservation, set 'deleted_at' to null."
+                        }
+                    },
+                    trace = traceId
+                });
+            }
+            
+            //TODO: authentication
+            
+            // validate reservation data
+            var validationExistingResult = await validator.ValidateExistingAsync(body.From, body.To, body.RoomId, reservation.Id ,db, client, cancellationToken);
+
+            if (!validationExistingResult.IsValid)
+            {
+                return Results.BadRequest(new
+                {
+                    errors = validationExistingResult.Errors.Select(e => new {
+                        code = e.Code,
+                        message = e.Message,
+                        more_info = e.MoreInfo
+                    }),
+                    trace = traceId
+                });
+            }
+            
+            reservation.From = body.From;
+            reservation.To = body.To;
+            reservation.RoomId = body.RoomId;
+            reservation.DeletedAt = body.DeletedAt;
+
+            await db.SaveChangesAsync();
+
+            return Results.Ok(reservation);
             
         });
         
@@ -175,31 +232,4 @@ public static class ReservationEndpointsReservation
             
         });
     } 
-    
-    private static async Task<bool> RoomExistsAsync(HttpClient client, Guid room_id, CancellationToken ct)
-    {
-        try
-        {
-            using var resp = await client.GetAsync($"/api/v3/assets/rooms/{room_id}", ct);
-            return resp.IsSuccessStatusCode;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
-    private static async Task<bool> RoomIsBookedAsync(ReservationDbContext db, Guid room_id, DateOnly from, DateOnly to)
-    {
-        var query = db.Reservations.AsQueryable();
-        return await query.AnyAsync(r =>
-            r.RoomId == room_id &&
-            r.DeletedAt == null &&
-            (
-                (from >= r.From && from < r.To) ||
-                (to > r.From && to <= r.To) ||
-                (from <= r.From && to >= r.To)
-            )
-        );
-    }
 }

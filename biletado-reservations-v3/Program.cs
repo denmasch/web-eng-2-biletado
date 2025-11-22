@@ -1,5 +1,6 @@
 using biletado_reservations_v3.Data;
 using biletado_reservations_v3.Endpoints;
+using biletado_reservations_v3.Service;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +19,8 @@ builder.Services.AddHttpClient("assets", client =>
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddScoped<IReservationValidator, ReservationValidator>();
+
 
 var app = builder.Build();
 

@@ -257,7 +257,7 @@ public static class ReservationEndpointsReservation
             // reservation is already soft-deleted and permanent delete is not requested
             if (reservation.DeletedAt != null && !permanent)
             {
-                return Results.BadRequest(new
+                return Results.NotFound(new
                 {
                     errors = new[]
                     {

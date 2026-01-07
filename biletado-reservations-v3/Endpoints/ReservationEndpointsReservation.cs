@@ -134,6 +134,7 @@ public static class ReservationEndpointsReservation
             ReservationReplacement body,
             IHttpClientFactory httpClientFactory,
             IReservationValidator validator,
+            HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
@@ -181,6 +182,14 @@ public static class ReservationEndpointsReservation
 
                 return Results.Created(location, newReservation);
             }
+            
+            if (isExisting)
+            {
+                if (httpContext.User?.Identity?.IsAuthenticated != true)
+                {
+                    return Results.Unauthorized();
+                }
+            }
 
             if (isDeleted && body.DeletedAt != null)
             {
@@ -198,8 +207,6 @@ public static class ReservationEndpointsReservation
                     trace = traceId
                 });
             }
-            
-            //TODO: authentication
             
             // validate reservation data
             var validationExistingResult = await validator.ValidateExistingAsync(body.From, body.To, body.RoomId, reservation.Id ,db, client, cancellationToken);
@@ -226,6 +233,26 @@ public static class ReservationEndpointsReservation
 
             return Results.Ok(reservation);
             
+        }).WithOpenApi(operation =>
+        {
+            operation.Security = new List<Microsoft.OpenApi.Models.OpenApiSecurityRequirement>
+            {
+                new()
+                {
+                    {
+                        new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                        {
+                            Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                            {
+                                Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                                Id = "OAuth2"
+                            }
+                        },
+                        new List<string>()
+                    }
+                }
+            };
+            return operation;
         });
         
         group.MapDelete("{id}", async (Guid id, ReservationDbContext db, [FromQuery] bool permanent = false) =>
@@ -282,6 +309,27 @@ public static class ReservationEndpointsReservation
             }
             await db.SaveChangesAsync();
             return Results.NoContent();
+        }).RequireAuthorization()
+        .WithOpenApi(operation =>
+        {
+            operation.Security = new List<Microsoft.OpenApi.Models.OpenApiSecurityRequirement>
+            {
+                new()
+                {
+                    {
+                        new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                        {
+                            Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                            {
+                                Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                                Id = "OAuth2"
+                            }
+                        },
+                        new List<string>()
+                    }
+                }
+            };
+            return operation;
         });
-    } 
+    }
 }

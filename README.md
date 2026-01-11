@@ -26,12 +26,15 @@ You shoud now be able to open biletado at localhost:9090 and its API-docs
 ## Running the REST API Backend with Podman
 
 - Pull and run latest image with Podman:
+
+    - !Note: Replace `<commit-sha>` with the actual commit SHA of the image you want to run. Find the SHA in the [GitHub Container Registry for the repository](https://github.com/denmasch/web-eng-2-biletado/pkgs/container/web-eng-2-biletado%2Fbiletado-reservations-v3).
+
 ```bash
     # Pull the image
-    podman pull ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:latest
+    podman pull ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:<commit-sha>
 
     # Run the container locally
-    podman run -p 5207:5207 ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:latest
+    podman run -p 5207:5207 ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:<commit-sha>
 ```
 - The API will be available at http://localhost:5207
 - Port 5207 is exposed internally and mapped to your host.

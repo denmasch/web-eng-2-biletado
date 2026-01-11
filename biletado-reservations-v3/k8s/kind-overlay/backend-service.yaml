@@ -1,0 +1,30 @@
+﻿apiVersion: v1
+kind: Service
+metadata:
+  name: biletado-backend
+spec:
+  selector:
+    app: biletado-backend
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+
+---
+# Optional NodePort or LoadBalancer for exposing externally in kind/test environments
+apiVersion: v1
+kind: Service
+metadata:
+  name: biletado-backend-nodeport
+spec:
+  selector:
+    app: biletado-backend
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 5207
+      protocol: TCP
+      name: http

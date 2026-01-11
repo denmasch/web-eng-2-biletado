@@ -30,7 +30,7 @@ ENTRYPOINT ["dotnet", "biletado-reservations-v3.dll"]
 
 
 # Development stage: build a dev image using the SDK with hot-reload (dotnet watch).
-# Build with: docker build --target dev -t biletado/reservations:dev .
+# Build with: docker build --target devw -t biletado/reservations:dev .
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dev
 WORKDIR /src
 

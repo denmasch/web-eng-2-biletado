@@ -61,7 +61,7 @@ jobs:
 
       - name: Patch REST API backend image
         run: |
-          kubectl set image deployment/reservations-backend \
+          kubectl set image deployment/backend \
             reservations=ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:${{ github.sha }} \
             -n biletado
 

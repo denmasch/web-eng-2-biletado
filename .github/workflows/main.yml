@@ -1,0 +1,33 @@
+# language: yaml
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and push to GHCR
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: ghcr.io/denmasch/biletado-reservations:latest
+          platforms: linux/amd64
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set kubeconfig
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          echo "$KUBECONFIG_DATA" | base64 --decode > kubeconfig
+          export KUBECONFIG=$PWD/kubeconfig
+      - name: Apply manifests
+        run: |
+          kubectl apply -k overlays/kind -n biletado
+          kubectl rollout status deployment/reservations -n biletado --timeout=120s

@@ -115,7 +115,7 @@ public static class ReservationEndpointsStatus
             await db.Database.ExecuteSqlRawAsync("SELECT 1;");
             return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return false;
         }

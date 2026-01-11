@@ -17,11 +17,11 @@ public class Error
     /// The error message.
     /// </summary>
     [JsonPropertyName("message")]
-    public string Message { get; set; }
+    public required string Message { get; set; }
     
     /// <summary>
     /// Additional information about the error.
     /// </summary>
     [JsonPropertyName("more_info")]
-    public string MoreInfo { get; set; }
+    public required string MoreInfo { get; set; }
 }

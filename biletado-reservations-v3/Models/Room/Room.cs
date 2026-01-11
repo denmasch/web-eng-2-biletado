@@ -8,7 +8,7 @@ public class Room
     public Guid Id { get; set; } 
     
     [JsonPropertyName("name")]
-    public string Name { get; set; }
+    public required string Name { get; set; }
     
     
     [JsonPropertyName("storey_id")]

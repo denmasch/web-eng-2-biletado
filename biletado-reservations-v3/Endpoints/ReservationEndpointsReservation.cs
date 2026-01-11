@@ -233,6 +233,7 @@ public static class ReservationEndpointsReservation
             }
             
             // validate reservation data
+            Debug.Assert(reservation != null, nameof(reservation) + " != null");
             var validationExistingResult = await validator.ValidateExistingAsync(body.From, body.To, body.RoomId, reservation.Id ,db, client, cancellationToken);
 
             if (!validationExistingResult.IsValid)

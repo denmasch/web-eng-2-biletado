@@ -64,8 +64,12 @@ jobs:
       - name: Apply k8s overlays
         run: |
           kubectl apply -k biletado-reservations-v3/k8s/kind-overlay \
-            --prune -l app.kubernetes.io/part-of=biletado -n biletado \
-            --prune-allowlist=/v1/configmap,/v1/service,apps/v1/deployment
+           --prune \
+           --prune-allowlist="apps/v1/Deployment" \
+           --prune-allowlist="v1/Service" \
+           --prune-allowlist="v1/ConfigMap" \
+           -l app.kubernetes.io/part-of=biletado \
+           -n biletado
 
       # --- Wait for Deployment to exist before patching ---
       - name: Wait for REST API backend deployment

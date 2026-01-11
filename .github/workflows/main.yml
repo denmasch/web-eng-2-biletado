@@ -57,7 +57,7 @@ jobs:
 
       - name: Apply k8s overlays
         run: |
-          kubectl apply -k overlays/kind --prune -l app.kubernetes.io/part-of=biletado -n biletado
+          kubectl apply -k biletado-reservations-v3/k8s/kind-overlay --prune -l app.kubernetes.io/part-of=biletado -n biletado
 
       - name: Patch REST API backend image
         run: |

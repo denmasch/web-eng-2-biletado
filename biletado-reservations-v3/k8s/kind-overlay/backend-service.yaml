@@ -25,6 +25,7 @@ spec:
   ports:
     - port: 8080
       targetPort: 8080
-      nodePort: 5207
+      nodePort: 30007
+      # Kubernetes only allows NodePort values between 30000 and 32767 by default
       protocol: TCP
       name: http

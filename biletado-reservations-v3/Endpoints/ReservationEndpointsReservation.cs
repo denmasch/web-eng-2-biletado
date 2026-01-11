@@ -4,6 +4,7 @@ using biletado_reservations_v3.Data;
 using biletado_reservations_v3.Service;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace biletado_reservations_v3.Endpoints;
 
@@ -21,6 +22,7 @@ public static class ReservationEndpointsReservation
             DateOnly? after
         ) =>
         {
+            Log.Information("Getting reservations");
             var query = db.Reservations.AsQueryable();
 
             if (includeDeleted is not true)
@@ -61,6 +63,7 @@ public static class ReservationEndpointsReservation
             CancellationToken cancellationToken
         ) =>
         {
+            Log.Information("Creating reservation");
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
             
             var client = httpClientFactory.CreateClient("assets");
@@ -70,6 +73,8 @@ public static class ReservationEndpointsReservation
 
             if (!validationResult.IsValid)
             {
+                Log.Warning("Validation Failed");
+                
                 return Results.BadRequest(new
                 {
                     errors = validationResult.Errors.Select(e => new {
@@ -95,6 +100,8 @@ public static class ReservationEndpointsReservation
 
             var location = $"/api/v3/reservations/reservations/{reservation.Id}";
 
+            Log.Information("Reservation created with ID {ReservationId}", reservation.Id);
+            
             return Results.Created(
                 location,
                 reservation
@@ -104,12 +111,16 @@ public static class ReservationEndpointsReservation
         
         group.MapGet("{id}", async (ReservationDbContext db, Guid id) =>
         {
+            Log.Information("Getting reservation with ID {ReservationId}", id);
+            
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
             var query = db.Reservations.AsQueryable();
             
             var reservation = await query.FirstOrDefaultAsync(r => r.Id == id);
             if (reservation == null)
             {
+                Log.Warning("Reservation with ID {ReservationId} not found", id);
+                
                 return Results.NotFound(new
                 {
                     errors = new[]
@@ -125,6 +136,8 @@ public static class ReservationEndpointsReservation
                 });
             }
             
+            Log.Information("Reservation with ID {ReservationId} retrieved", id);
+            
             return Results.Ok(reservation);
             
         });
@@ -137,6 +150,8 @@ public static class ReservationEndpointsReservation
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
+            Log.Information("Updating reservation with ID {ReservationId}", id);
+            
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
             
             var client = httpClientFactory.CreateClient("assets");
@@ -150,11 +165,15 @@ public static class ReservationEndpointsReservation
             
             if (!isExisting)
             {
+                Log.Information("Reservation with ID {ReservationId} not found", id);
+                
                 // validate new reservation data
                 var validationNewResult = await validator.ValidateNewAsync(body.From, body.To, body.RoomId, db, client, cancellationToken);
 
                 if (!validationNewResult.IsValid)
                 {
+                    Log.Warning("Validation Failed for new reservation");
+                    
                     return Results.BadRequest(new
                     {
                         errors = validationNewResult.Errors.Select(e => new {
@@ -180,6 +199,8 @@ public static class ReservationEndpointsReservation
                 
                 var location = $"/api/v3/reservations/reservations/{newReservation.Id}";
 
+                Log.Information("Reservation created with ID {ReservationId}", newReservation.Id);
+                
                 return Results.Created(location, newReservation);
             }
             
@@ -187,12 +208,15 @@ public static class ReservationEndpointsReservation
             {
                 if (httpContext.User?.Identity?.IsAuthenticated != true)
                 {
+                    Log.Warning("Unauthorized attempt to update reservation with ID {ReservationId}", id);
                     return Results.Unauthorized();
                 }
             }
 
             if (isDeleted && body.DeletedAt != null)
             {
+                Log.Warning("Attempt to update a soft deleted reservation but deleted_at is not null", id);
+                
                 return Results.BadRequest(new
                 {
                     errors = new[]
@@ -213,6 +237,8 @@ public static class ReservationEndpointsReservation
 
             if (!validationExistingResult.IsValid)
             {
+                Log.Warning("Validation Failed for new reservation");
+                
                 return Results.BadRequest(new
                 {
                     errors = validationExistingResult.Errors.Select(e => new {
@@ -231,6 +257,8 @@ public static class ReservationEndpointsReservation
 
             await db.SaveChangesAsync();
 
+            Log.Information("Reservation updated with ID {ReservationId}", reservation.Id);
+            
             return Results.Ok(reservation);
             
         }).WithOpenApi(operation =>
@@ -257,6 +285,8 @@ public static class ReservationEndpointsReservation
         
         group.MapDelete("{id}", async (Guid id, ReservationDbContext db, [FromQuery] bool permanent = false) =>
         {
+            Log.Information("Deleting reservation with ID {ReservationId}", id);
+            
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
             
             var reservation = await db.Reservations
@@ -266,6 +296,8 @@ public static class ReservationEndpointsReservation
             // reservation not found
             if (reservation == null)
             {
+                Log.Warning("Reservation with ID {ReservationId} not found", id);
+                
                 return Results.NotFound(new
                 {
                     errors = new[]
@@ -284,6 +316,8 @@ public static class ReservationEndpointsReservation
             // reservation is already soft-deleted and permanent delete is not requested
             if (reservation.DeletedAt != null && !permanent)
             {
+                Log.Warning("Reservation with ID {ReservationId} is already soft deleted", id);
+                
                 return Results.NotFound(new
                 {
                     errors = new[]
@@ -308,6 +342,9 @@ public static class ReservationEndpointsReservation
                 reservation.DeletedAt = DateTime.UtcNow;
             }
             await db.SaveChangesAsync();
+            
+            Log.Information("Reservation with ID {ReservationId} deleted", id);
+            
             return Results.NoContent();
         }).RequireAuthorization()
         .WithOpenApi(operation =>

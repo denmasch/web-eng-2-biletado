@@ -5,8 +5,33 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// logging
+var levelSwitch = new LoggingLevelSwitch();
+var configuredLevel = builder.Configuration["LOG_LEVEL"];
+if (!string.IsNullOrWhiteSpace(configuredLevel) &&
+    Enum.TryParse<LogEventLevel>(configuredLevel, true, out var parsedLevel))
+{
+    levelSwitch.MinimumLevel = parsedLevel;
+}
+
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .MinimumLevel.ControlledBy(levelSwitch)
+    .CreateLogger();
+Log.Information("application.starting env={Environment} argsCount={ArgsCount} minLevel={MinLevel}",
+    builder.Environment.EnvironmentName,
+    args.Length,
+    levelSwitch.MinimumLevel);
+builder.Host.UseSerilog();
+builder.Services.AddSingleton(Log.Logger);
+builder.Services.AddSingleton(levelSwitch);
+
 
 builder.Services.AddDbContext<ReservationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("ReservationConnection"))
@@ -18,8 +43,6 @@ builder.Services.AddHttpClient("assets", client =>
     client.Timeout = TimeSpan.FromSeconds(3);
 });
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 { 
@@ -104,6 +127,8 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+Log.Information("application.built env={Environment}", app.Environment.EnvironmentName);
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -160,5 +185,7 @@ app.UseAuthorization();
 
 app.MapReservationEndpointsStatus();
 app.MapReservationEndpointsReservations();
+
+Log.Information("application.startup_complete env={Environment}", app.Environment.EnvironmentName);
 
 app.Run();

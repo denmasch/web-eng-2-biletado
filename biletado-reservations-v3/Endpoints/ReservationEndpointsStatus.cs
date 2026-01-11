@@ -4,6 +4,7 @@ using biletado_reservations_v3.Models.Reservation;
 using biletado_reservations_v3.Data;
 using biletado_reservations_v3.Models.Status;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace biletado_reservations_v3.Endpoints;
 
@@ -14,11 +15,18 @@ public static class ReservationEndpointsStatus
         var group = routes.MapGroup("/api/v3/reservations").WithTags("Status");
 
         group.MapGet("/status", async () =>
-            Results.Ok(new ApiStatus { Authors = new List<string> {"Devin Schnurr", "Jannik Metz"}, ApiVersion = "3.0.0"})
+            {
+                Log.Information("Status endpoint called");
+
+                return Results.Ok(new ApiStatus
+                    { Authors = new List<string> { "Devin Schnurr", "Jannik Metz" }, ApiVersion = "3.0.0" });
+            }
         );
 
         group.MapGet("/health", async (ReservationDbContext reservationsDb, IHttpClientFactory httpClientFactory, CancellationToken cancellationToken) =>
         {
+            Log.Information("Health endpoint called");
+            
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
             
             var client = httpClientFactory.CreateClient("assets");
@@ -28,6 +36,8 @@ public static class ReservationEndpointsStatus
             
             if (!assetsConnected || !reservationsConnected)
             {
+                Log.Warning("Database or external API unreachable");
+                
                 return Results.Json( new
                 {
                     errors = new[]
@@ -42,6 +52,8 @@ public static class ReservationEndpointsStatus
                     trace = traceId
                 }, statusCode: 503);
             }
+            
+            Log.Information("Health check passed");
 
             return Results.Ok(new 
                 { 
@@ -64,6 +76,8 @@ public static class ReservationEndpointsStatus
 
         group.MapGet("/health/ready", async (ReservationDbContext reservationsDb, IHttpClientFactory httpClientFactory, CancellationToken cancellationToken) =>
             {
+                Log.Information("Readiness endpoint called");
+                
                 var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
                 
                 var client = httpClientFactory.CreateClient("assets");
@@ -73,6 +87,7 @@ public static class ReservationEndpointsStatus
                 
                 if (!assetsConnected || !reservationsConnected)
                 {
+                    Log.Warning("Database or external API unreachable");
                     return Results.Json( new
                     {
                         errors = new[]
@@ -87,6 +102,7 @@ public static class ReservationEndpointsStatus
                         trace = traceId
                     }, statusCode: 503);
                 }
+                Log.Information("Readiness check passed");
                 return Results.Ok(new { ready = true });
             }
         );

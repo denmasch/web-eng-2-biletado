@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: biletado
 
 resources:
+  - https://gitlab.com/biletado/kustomize.git//overlays/kind?ref=main
   - backend-deployment.yaml
   - backend-service.yaml
 

@@ -1,9 +1,15 @@
 Biletado backend from Jannik Metz and Devin Schnurr, for Web-Engeneering 2 at DHBW Karlsruhe. 
 
 
+# Tech Stack
+- Backend: .NET 8 (C#)
+- Database: PostgreSQL
+- Containerization: Podman
+- API Documentation: Swagger / Rapidoc
+
 # Setup Instructions
 
-## Requirements
+## Prerequisites
 - Podman installed
 - kind installed
 - GitHub access to pull images from GHCR
@@ -38,3 +44,9 @@ You shoud now be able to open biletado at localhost:9090 and its API-docs
 ```
 - The API will be available at http://localhost:5207
 - Port 5207 is exposed internally and mapped to your host.
+
+
+
+# License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

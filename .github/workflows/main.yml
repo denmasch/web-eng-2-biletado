@@ -34,7 +34,7 @@ jobs:
           tags: ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:${{ github.sha }}
 
       - name: Create kind cluster
-        uses: engineerd/setup-kind
+        uses: engineerd/setup-kind@v0.6.0
         with:
           wait-ready: true
 

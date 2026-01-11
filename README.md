@@ -5,6 +5,7 @@ Biletado backend from Jannik Metz and Devin Schnurr, for Web-Engeneering 2 at DH
 - Backend: .NET 8 (C#)
 - Database: PostgreSQL
 - Containerization: Podman
+- Serilog for logging
 - API Documentation: Swagger / Rapidoc
 
 # Setup Instructions

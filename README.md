@@ -5,6 +5,8 @@ Biletado backend from Jannik Metz and Devin Schnurr, for Web-Engeneering 2 at DH
 - Backend: .NET 8 (C#)
 - Database: PostgreSQL
 - Containerization: Podman
+- Registry : GitHub Container Registry (ghcr.io)
+- CI/CD : GitHub Actions
 - Serilog for logging
 - API Documentation: Swagger / Rapidoc
 

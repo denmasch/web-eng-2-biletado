@@ -2,6 +2,7 @@ using System.Diagnostics;
 using biletado_reservations_v3.Models.Reservation;
 using biletado_reservations_v3.Data;
 using biletado_reservations_v3.Service;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace biletado_reservations_v3.Endpoints;
@@ -133,6 +134,7 @@ public static class ReservationEndpointsReservation
             ReservationReplacement body,
             IHttpClientFactory httpClientFactory,
             IReservationValidator validator,
+            HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
@@ -180,6 +182,14 @@ public static class ReservationEndpointsReservation
 
                 return Results.Created(location, newReservation);
             }
+            
+            if (isExisting)
+            {
+                if (httpContext.User?.Identity?.IsAuthenticated != true)
+                {
+                    return Results.Unauthorized();
+                }
+            }
 
             if (isDeleted && body.DeletedAt != null)
             {
@@ -197,8 +207,6 @@ public static class ReservationEndpointsReservation
                     trace = traceId
                 });
             }
-            
-            //TODO: authentication
             
             // validate reservation data
             var validationExistingResult = await validator.ValidateExistingAsync(body.From, body.To, body.RoomId, reservation.Id ,db, client, cancellationToken);
@@ -225,11 +233,103 @@ public static class ReservationEndpointsReservation
 
             return Results.Ok(reservation);
             
+        }).WithOpenApi(operation =>
+        {
+            operation.Security = new List<Microsoft.OpenApi.Models.OpenApiSecurityRequirement>
+            {
+                new()
+                {
+                    {
+                        new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                        {
+                            Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                            {
+                                Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                                Id = "OAuth2"
+                            }
+                        },
+                        new List<string>()
+                    }
+                }
+            };
+            return operation;
         });
         
-        group.MapDelete("{id}", async (Guid id, ReservationDbContext db) =>
+        group.MapDelete("{id}", async (Guid id, ReservationDbContext db, [FromQuery] bool permanent = false) =>
         {
+            var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
             
+            var reservation = await db.Reservations
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            // reservation not found
+            if (reservation == null)
+            {
+                return Results.NotFound(new
+                {
+                    errors = new[]
+                    {
+                        new
+                        {
+                            code = "bad_request",
+                            message = "Reservation not found.",
+                            more_info = "No reservation with the given id exists."
+                        }
+                    },
+                    trace = traceId
+                });
+            }
+            
+            // reservation is already soft-deleted and permanent delete is not requested
+            if (reservation.DeletedAt != null && !permanent)
+            {
+                return Results.NotFound(new
+                {
+                    errors = new[]
+                    {
+                        new
+                        {
+                            code = "bad_request",
+                            message = "Reservation is already soft deleted.",
+                            more_info = "Reservation is already soft deleted and permanent delete is not requested."
+                        }
+                    },
+                    trace = traceId
+                });
+            }
+            
+            if (permanent)
+            {
+                db.Reservations.Remove(reservation);
+            }
+            else
+            {
+                reservation.DeletedAt = DateTime.UtcNow;
+            }
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        }).RequireAuthorization()
+        .WithOpenApi(operation =>
+        {
+            operation.Security = new List<Microsoft.OpenApi.Models.OpenApiSecurityRequirement>
+            {
+                new()
+                {
+                    {
+                        new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                        {
+                            Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                            {
+                                Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                                Id = "OAuth2"
+                            }
+                        },
+                        new List<string>()
+                    }
+                }
+            };
+            return operation;
         });
-    } 
+    }
 }

@@ -1,0 +1,42 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: biletado-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: biletado-backend
+  template:
+    metadata:
+      labels:
+        app: biletado-backend
+    spec:
+      containers:
+        - name: backend
+          image: biletado-reservations-v3:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ConnectionStrings__ReservationConnection
+              value: "Host=postgres;Port=5432;Database=reservations_v3;Username=postgres;Password=postgres"
+            - name: Assets__BaseUrl
+              value: "http://assets:9090"
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /api/v3/reservations/health/ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/v3/reservations/health/live
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+

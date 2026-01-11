@@ -37,9 +37,12 @@ builder.Services.AddDbContext<ReservationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("ReservationConnection"))
 );
 
+// Read assets base URL from configuration (allows overriding via env var "Assets__BaseUrl")
+var assetsBase = builder.Configuration["Assets:BaseUrl"] ?? "http://localhost:9090";
+
 builder.Services.AddHttpClient("assets", client =>
 {
-    client.BaseAddress = new Uri("http://localhost:9090");
+    client.BaseAddress = new Uri(assetsBase);
     client.Timeout = TimeSpan.FromSeconds(3);
 });
 

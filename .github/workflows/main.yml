@@ -1,33 +1,64 @@
-# language: yaml
-name: CI
+name: CI/CD - reservations
 
 on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build and push to GHCR
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image to GHCR
         uses: docker/build-push-action@v4
         with:
+          context: ./biletado-reservations-v3
+          file: ./biletado-reservations-v3/Dockerfile
           push: true
-          tags: ghcr.io/denmasch/biletado-reservations:latest
-          platforms: linux/amd64
+          tags: ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:${{ github.sha }}
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set kubeconfig
-        env:
-          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+      - name: Create kind cluster
+        uses: engineerd/setup-kind@v0.11.0
+        with:
+          wait-ready: true
+
+      - name: Configure kubectl (verify)
         run: |
-          echo "$KUBECONFIG_DATA" | base64 --decode > kubeconfig
-          export KUBECONFIG=$PWD/kubeconfig
-      - name: Apply manifests
+          kubectl version --client
+          kubectl cluster-info
+
+      - name: Create namespace
+        run: kubectl create namespace biletado || true
+
+      - name: Create GHCR imagePullSecret in cluster
         run: |
-          kubectl apply -k overlays/kind -n biletado
-          kubectl rollout status deployment/reservations -n biletado --timeout=120s
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${{ secrets.GITHUB_TOKEN }}" \
+            --docker-email=actions@github.com \
+            -n biletado || true
+
+      - name: Apply k8s overlay for kind
+        run: kubectl apply -k k8s/kind-overlay -n biletado
+
+      - name: Patch deployment image (ersetze Platzhalter)
+        run: |
+          kubectl set image deployment/biletado-backend backend=ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:${{ github.sha }} -n biletado
+          kubectl rollout status deployment/biletado-backend -n biletado --timeout=120s

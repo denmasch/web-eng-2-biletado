@@ -1,33 +1,74 @@
-# language: yaml
-name: CI
+name: CI/CD - reservations
 
 on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build and push to GHCR
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push REST API backend image
         uses: docker/build-push-action@v4
         with:
+          context: ./biletado-reservations-v3
+          file: ./biletado-reservations-v3/Dockerfile
           push: true
-          tags: ghcr.io/denmasch/biletado-reservations:latest
-          platforms: linux/amd64
+          tags: ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:${{ github.sha }}
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set kubeconfig
-        env:
-          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+      # --- Setup kind cluster manually ---
+      - name: Install kind
         run: |
-          echo "$KUBECONFIG_DATA" | base64 --decode > kubeconfig
-          export KUBECONFIG=$PWD/kubeconfig
-      - name: Apply manifests
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Create kind cluster
+        run: kind create cluster --wait 60s
+
+      # --- Configure kubectl ---
+      - name: Configure kubectl
         run: |
-          kubectl apply -k overlays/kind -n biletado
-          kubectl rollout status deployment/reservations -n biletado --timeout=120s
+          kubectl version --client
+          kubectl cluster-info
+
+      # --- Deploy REST API backend ---
+      - name: Create biletado namespace
+        run: |
+          kubectl create namespace biletado || true
+          kubectl config set-context --current --namespace=biletado
+
+      - name: Apply k8s overlays
+        run: |
+          kubectl apply -k biletado-reservations-v3/k8s/kind-overlay --prune -l app.kubernetes.io/part-of=biletado -n biletado
+
+      - name: Patch REST API backend image
+        run: |
+          kubectl set image deployment/reservations \
+            reservations=ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:${{ github.sha }} \
+            -n biletado
+
+      - name: Wait for all pods ready
+        run: |
+          kubectl rollout status deployment -n biletado -l app.kubernetes.io/part-of=biletado --timeout=120s
+          kubectl wait pods -n biletado -l app.kubernetes.io/part-of=biletado --for condition=Ready --timeout=120s
+
+      - name: Info
+        run: echo "Cluster ready! Access the REST API backend on http://localhost:9090"

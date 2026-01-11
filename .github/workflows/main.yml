@@ -25,7 +25,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push image to GHCR
+      - name: Build and push REST API backend image
         uses: docker/build-push-action@v4
         with:
           context: ./biletado-reservations-v3
@@ -33,32 +33,42 @@ jobs:
           push: true
           tags: ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:${{ github.sha }}
 
-      - name: Create kind cluster
-        uses: engineerd/setup-kind@v0.6.0
-        with:
-          wait-ready: true
+      # --- Setup kind cluster manually ---
+      - name: Install kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
 
-      - name: Configure kubectl (verify)
+      - name: Create kind cluster
+        run: kind create cluster --wait 60s
+
+      # --- Configure kubectl ---
+      - name: Configure kubectl
         run: |
           kubectl version --client
           kubectl cluster-info
 
-      - name: Create namespace
-        run: kubectl create namespace biletado || true
-
-      - name: Create GHCR imagePullSecret in cluster
+      # --- Deploy REST API backend ---
+      - name: Create biletado namespace
         run: |
-          kubectl create secret docker-registry ghcr-secret \
-            --docker-server=ghcr.io \
-            --docker-username="${{ github.actor }}" \
-            --docker-password="${{ secrets.GITHUB_TOKEN }}" \
-            --docker-email=actions@github.com \
-            -n biletado || true
+          kubectl create namespace biletado || true
+          kubectl config set-context --current --namespace=biletado
 
-      - name: Apply k8s overlay for kind
-        run: kubectl apply -k k8s/kind-overlay -n biletado
-
-      - name: Patch deployment image (ersetze Platzhalter)
+      - name: Apply k8s overlays
         run: |
-          kubectl set image deployment/biletado-backend backend=ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:${{ github.sha }} -n biletado
-          kubectl rollout status deployment/biletado-backend -n biletado --timeout=120s
+          kubectl apply -k overlays/kind --prune -l app.kubernetes.io/part-of=biletado -n biletado
+
+      - name: Patch REST API backend image
+        run: |
+          kubectl set image deployment/reservations \
+            reservations=ghcr.io/denmasch/web-eng-2-biletado/biletado-reservations-v3:${{ github.sha }} \
+            -n biletado
+
+      - name: Wait for all pods ready
+        run: |
+          kubectl rollout status deployment -n biletado -l app.kubernetes.io/part-of=biletado --timeout=120s
+          kubectl wait pods -n biletado -l app.kubernetes.io/part-of=biletado --for condition=Ready --timeout=120s
+
+      - name: Info
+        run: echo "Cluster ready! Access the REST API backend on http://localhost:9090"

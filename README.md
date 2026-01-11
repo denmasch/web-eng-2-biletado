@@ -30,6 +30,12 @@ See [biletado/kustomize](https://gitlab.com/biletado/kustomize) for more options
 
 You shoud now be able to open biletado at localhost:9090 and its API-docs
 
+## Forward Ports to Access Services Locally
+
+```bash
+kubectl port-forward deployment/postgres  -n biletado 5432:5432
+```
+
 ## Running the REST API Backend with Podman
 
 - Pull and run latest image with Podman:
